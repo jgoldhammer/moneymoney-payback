@@ -20,6 +20,8 @@ Konto einrichten
 Danach kannst du unter *Konto* > *Konto hinzufügen* dein Payback-Punkte-Konto zu MoneyMoney hinzufügen. Wähle dazu unter Andere das Payback-Punkte Konto aus.
 Für die Nutzung des Kontos musst du deine Mailadresse und dein Passswort genau wie auf der Website von Payback ein.
 
+![Kontoeinrichtung](https://github.com/jgoldhammer/moneymoney-payback/blob/master/payback.png)
+
 Fragen oder Probleme?
 ---------------------
 

@@ -6,7 +6,7 @@
 --
 -- The MIT License (MIT)
 --
--- Copyright (c) 2012-2014 MRH applications GmbH
+-- Copyright (c) 2012-2015 MRH applications GmbH
 --
 -- Permission is hereby granted, free of charge, to any person obtaining a copy
 -- of this software and associated documentation files (the "Software"), to deal
@@ -30,7 +30,7 @@
 
 -- ---------------------------------------------------------------------------------------------------------------------
 --
--- Get portfolio of DWS Investments.
+-- Get portfolio of Payback online account.
 --
 -- ATTENTION: This extension requires MoneyMoney version 2.2.2 or higher
 --
@@ -45,7 +45,7 @@ WebBanking {
     version = 1.00,
     country = "de",
     url = "https://www.payback.de/pb/authenticate/id/713416/#loginSecureTab",
-    services    = {"Payback Points Accounts},
+    services    = {"Payback-Punkte"},
     description = string.format(MM.localizeText("Get points of %s"), "Payback account")
 }
 
@@ -55,9 +55,9 @@ WebBanking {
 
 local function strToAmount(str)
     -- Helper function for converting localized amount strings to Lua numbers.
-    print('raw value: '+str)
+    print("raw value: ".. str)
     local convertedValue = string.gsub(string.gsub(string.gsub(str, " .+", ""), "%.", ""), ",", ".")
-    print('converted value '+convertedValue)
+    print("converted value " .. convertedValue)
     return convertedValue
 end
 
@@ -128,14 +128,14 @@ local overview_html
 
 function SupportsBank(protocol, bankCode)
     -- Using artificial bankcode to identify the DWS Investments group.
-    return protocol == ProtocolWebBanking and bankCode == "Payback"
+  return bankCode == "Payback-Punkte" and protocol == ProtocolWebBanking
 end
 
 -- ---------------------------------------------------------------------------------------------------------------------
 
 function InitializeSession(protocol, bankCode, username, customer, password)
 
-    print("InitializeSession with " .. protocol .. " connecting " .. url)
+    print("InitializeSession with " .. protocol .. " connecting " .. url .. "with ".. username)
     MM.printStatus("Start to login...")
 
     -- Create HTTPS connection object.
@@ -143,14 +143,19 @@ function InitializeSession(protocol, bankCode, username, customer, password)
     connection.language = "de-de"
 
     -- Fetch login page.
-    local html = HTML(connection:get(url))
+    local loginPage = HTML(connection:get(url))
 
     -- Fill in login credentials.
-    html:xpath("//*[@id='aliasInputSecure']"):attr("value", username)
-    html:xpath("//*[@id='passwordInput']"):attr("value", password)
+    loginPage:xpath("//*[@id='aliasInputSecure']"):attr("value", username)
+    loginPage:xpath("//*[@id='passwordInput']"):attr("value", password)
+
+    MM.printStatus("parameters filled in ");
 
     -- Submit login form.
-    overview_html = HTML(connection:request(html:xpath("//*[@id='loginSubmitButtonSecure']"):submit()))
+    local request = connection:request(loginPage:xpath("//input[@id='loginSubmitButtonSecure']"):click())
+
+    MM.printStatus("request " ..request)
+    overview_html = HTML(request)
 
     -- Check for failed login.
     local failure = overview_html:xpath("//*[@id='errorNotification']")
@@ -159,6 +164,9 @@ function InitializeSession(protocol, bankCode, username, customer, password)
         MM.printStatus("Login failed...");
         return LoginFailed
     end
+
+    MM.printStatus("Login success- go to correct paypack page ");
+
 
     overview_html = HTML(connection:request(overview_html:xpath("//ul[@class='secondary-nav tracking-event-module']/li[3]/a"):click()))
 
@@ -171,11 +179,12 @@ end
 
 function ListAccounts(knownAccounts)
 
+    local accountNumber = overview_html:xpath("//p[text()='Kundennummer:']/span"):text();
     -- Supports only one account
     local account = {
         owner = overview_html:xpath("//*/p[@class='welcome-msg']/strong"):text(),
-        name = "Paypack Punkte Konto",
-        accountNumber = overview_html:xpath("//p[text()='Kundennummer:']/span"):text(),
+        name = "Paypack Punkte Konto (" .. accountNumber .. ")",
+        accountNumber = accountNumber,
         portfolio = false,
         currency = "EUR",
         type = AccountTypeUnknown
@@ -190,36 +199,66 @@ function RefreshAccount(account, since)
     local transactions = {}
 
     -- the datefields can be filled directly
-    html:xpath("//input[@id='date1']"):attr("value", os.date("%d.%m.%Y", since))
-    html:xpath("//input[@id='date2']"):attr("value", os.date("%d.%m.%Y"))
+    overview_html:xpath("//input[@id='date1']"):attr("value", os.date("%d.%m.%Y", since))
+    overview_html:xpath("//input[@id='date2']"):attr("value", os.date("%d.%m.%Y"))
+
+    MM.printStatus("Fill in date ranges")
 
     print("Submitting transaction search form for " .. account.accountNumber)
-    html = HTML(connection:request(html:xpath("//form[@id='pointRangeForm']"):submit()))
+    overview_html = HTML(connection:request(overview_html:xpath("//form[@id='pointRangeForm']"):submit()))
 
     -- Get paypack points from text next to select box
-    local balance = html:xpath("//*span[@id='serverPoints']"):text()
+    local balance = overview_html:xpath("//span[@id='serverPoints']"):text()
+    -- eleminate the dot in the point number and divide it with 100 to get the euro equivalent
+    balance = string.gsub(balance,"%.","")/100
 
-    -- Check if the HTML table with transactions exists.
-    if html:xpath("//table[@class='mypoints']/tbody/tr[1]/td[1]"):length() > 0 then
+    MM.printStatus("balance " .. balance)
 
-        -- Extract transactions.
+    local firstPage =true;
 
-        html:xpath("//table[@class='mypoints']/tbody/tr[position()>1]"):each(function (index, row)
-            local columns = row:children()
+    repeat
+        local noMorePages = true;
 
-            local transaction = {
-                valueDate   = strToFullDate(columns:get(1):text()),
-                bookingDate = strToFullDate(columns:get(1):text()),
-                name        = columns:get(2):text(),
-                purpose     = columns:get(3):text(),
-                currency    = "EUR",
-                amount      = strToAmount(columns:get(4):text(), true)
-            }
+        -- Check if the HTML table with transactions exists.
+        if overview_html:xpath("//table[@class='mypoints']/tbody/tr[1]/td[1]"):length() > 0 then
 
-            table.insert(transactions, transaction)
-        end)
+            -- Extract transactions.
+            overview_html:xpath("//table[@class='mypoints']/tbody/tr[position()>0]"):each(function (index, row)
+                local columns = row:children()
+                local transaction = {
+                    valueDate   = strToFullDate(columns:get(1):text()),
+                    bookingDate = strToFullDate(columns:get(1):text()),
+                    name        = columns:get(2):text(),
+                    purpose     = columns:get(3):text() .. " : " .. columns:get(4):text(), true,
+                    currency    = "EUR",
+                    amount      = strToAmount(columns:get(4):text(), true)/100
+                }
 
-    end
+                table.insert(transactions, transaction)
+            end)
+
+
+            local linkCounter
+            if firstPage then
+                linkCounter = 1
+            else
+                linkCounter = 2
+            end
+
+
+            local nextPageLink = overview_html:xpath("//div[@class='pager-list']/a[".. linkCounter .."]");
+
+            -- check website for more pages to extract transactions for
+            if  nextPageLink:length()> 0 then
+                local link = overview_html:xpath("//div[@class='pager-list']/a[".. linkCounter .."]")
+                overview_html = HTML(connection:request(overview_html:xpath("//div[@class='pager-list']/a[".. linkCounter .."]"):click()))
+                noMorePages = false;
+                firstPage=false;
+                MM.printStatus("Getting more transactions...")
+            end
+
+        end
+    until (noMorePages);
 
     -- Return balance and array of transactions.
     return {balance=balance, transactions=transactions, securities=nil}
@@ -230,7 +269,7 @@ end
 function EndSession()
 
     -- Submit logout form.
-    local logout_html = HTML(connection:request(overview_html:xpath("//*[@id='pbLogin]"):click()))
+    local logout_html = HTML(connection:request(overview_html:xpath("//a[@id='pbLogin']"):click()))
 
     print("Logged out successfully!")
 end
