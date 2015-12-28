@@ -1,4 +1,4 @@
-[MoneyMoney.app](http://moneymoney-app.com)-Erweiterung für die Depoabfrage der [Payback Punkte Konten](https://www.payback.de/).
+[MoneyMoney.app](http://moneymoney-app.com)-Erweiterung für die Abfrage der [Payback Punkte Konten](https://www.payback.de/).
 
 Voraussetzungen
 ----------------
