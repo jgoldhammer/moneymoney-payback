@@ -128,7 +128,7 @@ local overview_html
 
 function SupportsBank(protocol, bankCode)
     -- Using artificial bankcode to identify the DWS Investments group.
-  return bankCode == "Payback-Punkte" and protocol == ProtocolWebBanking
+    return bankCode == "Payback-Punkte" and protocol == ProtocolWebBanking
 end
 
 -- ---------------------------------------------------------------------------------------------------------------------
@@ -167,8 +167,8 @@ function InitializeSession(protocol, bankCode, username, customer, password)
 
     MM.printStatus("Login success- go to correct paypack page ");
 
-
-    overview_html = HTML(connection:request(overview_html:xpath("//ul[@class='secondary-nav tracking-event-module']/li[3]/a"):click()))
+    -- hard coded point url ...
+    overview_html = HTML(connection:get("https://www.payback.de/pb/punktekonto/id/13598/"))
 
     print("Session initialization completed successfully.")
     MM.printStatus("Login successfull...")
