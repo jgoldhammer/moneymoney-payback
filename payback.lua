@@ -42,7 +42,7 @@
 -- ---------------------------------------------------------------------------------------------------------------------
 
 WebBanking {
-    version = 1.00,
+    version = 1.1,
     country = "de",
     url = "https://www.payback.de/pb/authenticate/id/713416/#loginSecureTab",
     services    = {"Payback-Punkte"},
