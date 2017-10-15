@@ -6,7 +6,7 @@
 --
 -- The MIT License (MIT)
 --
--- Copyright (c) 2012-2015 MRH applications GmbH
+-- Copyright (c) 2012-2016 MRH applications GmbH
 --
 -- Permission is hereby granted, free of charge, to any person obtaining a copy
 -- of this software and associated documentation files (the "Software"), to deal
@@ -42,9 +42,9 @@
 -- ---------------------------------------------------------------------------------------------------------------------
 
 WebBanking {
-    version = 1.1,
+    version = 2.10,
     country = "de",
-    url = "https://www.payback.de/login",
+    url = "https://www.payback.de/pb/authenticate/id/713416/#loginSecureTab",
     services    = {"Payback-Punkte"},
     description = string.format(MM.localizeText("Get points of %s"), "Payback account")
 }
@@ -59,6 +59,17 @@ local function strToAmount(str)
     local convertedValue = string.gsub(string.gsub(string.gsub(str, " .+", ""), "%.", ""), ",", ".")
     print("converted value " .. convertedValue)
     return convertedValue
+end
+
+--Helper for priniting nested table
+local function deep_print(tbl)
+    for i, v in pairs(tbl) do
+        if type(v) == "table" then 
+            deep_print(v)
+        else 
+            print(i, v) 
+        end
+    end
 end
 
 -- ---------------------------------------------------------------------------------------------------------------------
@@ -135,12 +146,15 @@ end
 
 function InitializeSession(protocol, bankCode, username, customer, password)
 
-    print("InitializeSession with " .. protocol .. " connecting " .. url .. "with ".. username)
-    MM.printStatus("Start to login...")
+    print("InitializeSession with " .. protocol .. " connecting " .. url .. " with ".. username)
+    MM.printStatus("Start to login for user ".. username)
 
     -- Create HTTPS connection object.
     connection = Connection()
     connection.language = "de-de"
+
+    -- just ask the mpm to get a userId--
+    --local request = connection:get("https://mpm.payback.de/js?wp_id=3125530");
 
     -- Fetch login page.
     local loginPage = HTML(connection:get(url))
@@ -149,13 +163,25 @@ function InitializeSession(protocol, bankCode, username, customer, password)
     loginPage:xpath("//*[@id='aliasInputSecure']"):attr("value", username)
     loginPage:xpath("//*[@id='passwordInput']"):attr("value", password)
 
-    MM.printStatus("parameters filled in...");
+    MM.printStatus("parameters for login filled in - username = " .. username);
+
+    local loginForm = loginPage:xpath("//form[@name='loginForm']");
+    tprint(loginForm, 2);
+    -- Submit login form.
+    local response, code, headers, status = connection:request(loginForm:submit())
+    -- local response, code, headers, status = connection:request(loginPage:xpath("//input[@id='loginSubmitButtonSecure']"):click())
+
+    MM.printStatus("status code " ..code)
+    MM.printStatus("headers " ..headers)
+    MM.printStatus("status " ..status)
+
+    MM.printStatus("login response " ..response)
+    overview_html = HTML(response)
 
     -- Submit login form.
-    local request = connection:request(loginPage:xpath("//input[@id='loginSubmitButtonSecure']"):click())
 
-    MM.printStatus("request " ..request)
-    overview_html = HTML(request)
+   --  MM.printStatus("request " ..request)
+    -- overview_html = HTML(request)
 
     -- Check for failed login.
     local failure = overview_html:xpath("//*[@id='errorNotification']")
@@ -169,8 +195,6 @@ function InitializeSession(protocol, bankCode, username, customer, password)
 
     -- hard coded point url ...
     overview_html = HTML(connection:get("https://www.payback.de/pb/punktekonto/id/13598/"))
-
-    MM.printStatus("overview page " ..overview_html)
 
     print("Session initialization completed successfully.")
     MM.printStatus("Login successfull...")
@@ -207,14 +231,17 @@ function RefreshAccount(account, since)
     MM.printStatus("Fill in date ranges" )
 
     print("Submitting transaction search form for " .. account.accountNumber)
-    local form = overview_html:xpath("//form[@id='pointRangeForm']")
-    
-    MM.printStatus("Form for pointRangeForm: " .. form)
-    
-    overview_html = HTML(form):submit()))
+--    local form = overview_html:xpath("//form[@id='pointRangeForm']")
+    --overview_html = HTML(form):submit()
+
+   -- MM.printStatus("Form for pointRangeForm: " .. deep_print(form))
+   -- local response = connection:request(overview_html:xpath("//input[@title='Anzeigen']"):click())
+
+    overview_html = HTML(connection:request(overview_html:xpath("//input[@title='Anzeigen']"):click()))
 
     -- Get paypack points from text next to select box
     local balance = overview_html:xpath("//span[@id='serverPoints']"):text()
+
     -- eleminate the dot in the point number and divide it with 100 to get the euro equivalent
     balance = string.gsub(balance,"%.","")/100
 
@@ -278,4 +305,25 @@ function EndSession()
     local logout_html = HTML(connection:request(overview_html:xpath("//a[@id='pbLogin']"):click()))
 
     print("Logged out successfully!")
+end
+
+-- Print contents of `tbl`, with indentation.
+-- `indent` sets the initial level of indentation.
+function tprint (tbl, indent)
+  if not indent then indent = 0 end
+  for k, v in pairs(tbl) do
+    formatting = string.rep("  ", indent) .. k .. ": "
+    if type(v) == "table" then
+      print(formatting)
+      tprint(v, indent+1)
+    elseif type(v) == 'boolean' then
+      print(formatting .. tostring(v))	
+    elseif type(v) == 'function' then
+      print(formatting .. tostring(v))	
+    elseif type(v) == 'userdata' then
+      print(formatting .. tostring(v))		
+    else
+      print(formatting .. v)
+    end
+  end
 end
