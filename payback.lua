@@ -44,7 +44,7 @@
 WebBanking {
     version = 1.1,
     country = "de",
-    url = "https://www.payback.de/pb/authenticate/id/713416/#loginSecureTab",
+    url = "https://www.payback.de/login",
     services    = {"Payback-Punkte"},
     description = string.format(MM.localizeText("Get points of %s"), "Payback account")
 }
@@ -149,7 +149,7 @@ function InitializeSession(protocol, bankCode, username, customer, password)
     loginPage:xpath("//*[@id='aliasInputSecure']"):attr("value", username)
     loginPage:xpath("//*[@id='passwordInput']"):attr("value", password)
 
-    MM.printStatus("parameters filled in ");
+    MM.printStatus("parameters filled in...");
 
     -- Submit login form.
     local request = connection:request(loginPage:xpath("//input[@id='loginSubmitButtonSecure']"):click())
@@ -169,6 +169,8 @@ function InitializeSession(protocol, bankCode, username, customer, password)
 
     -- hard coded point url ...
     overview_html = HTML(connection:get("https://www.payback.de/pb/punktekonto/id/13598/"))
+
+    MM.printStatus("overview page " ..overview_html)
 
     print("Session initialization completed successfully.")
     MM.printStatus("Login successfull...")
@@ -202,10 +204,14 @@ function RefreshAccount(account, since)
     overview_html:xpath("//input[@id='date1']"):attr("value", os.date("%d.%m.%Y", since))
     overview_html:xpath("//input[@id='date2']"):attr("value", os.date("%d.%m.%Y"))
 
-    MM.printStatus("Fill in date ranges")
+    MM.printStatus("Fill in date ranges" )
 
     print("Submitting transaction search form for " .. account.accountNumber)
-    overview_html = HTML(connection:request(overview_html:xpath("//form[@id='pointRangeForm']"):submit()))
+    local form = overview_html:xpath("//form[@id='pointRangeForm']")
+    
+    MM.printStatus("Form for pointRangeForm: " .. form)
+    
+    overview_html = HTML(form):submit()))
 
     -- Get paypack points from text next to select box
     local balance = overview_html:xpath("//span[@id='serverPoints']"):text()
