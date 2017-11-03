@@ -44,7 +44,7 @@
 WebBanking {
     version = 2.10,
     country = "de",
-    url = "https://www.payback.de/pb/authenticate/id/713416/#loginSecureTab",
+    url = "https://www.payback.de/login#loginSecureTab",
     services    = {"Payback-Punkte"},
     description = string.format(MM.localizeText("Get points of %s"), "Payback account")
 }
